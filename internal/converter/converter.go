@@ -9,8 +9,8 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/alecthomas/jsonschema"
 	"github.com/chrusty/protoc-gen-jsonschema/internal/protos"
+	"github.com/invopop/jsonschema"
 	"github.com/sirupsen/logrus"
 	"github.com/xeipuuv/gojsonschema"
 	gengo "google.golang.org/protobuf/cmd/protoc-gen-go/internal_gengo"
@@ -27,6 +27,7 @@ const (
 	messageDelimiter        = "+"
 	versionDraft04          = "http://json-schema.org/draft-04/schema#"
 	versionDraft06          = "http://json-schema.org/draft-06/schema#"
+	versionDraft07          = "http://json-schema.org/draft-07/schema#"
 )
 
 // Converter is everything you need to convert protos to JSONSchemas:
@@ -65,7 +66,7 @@ func New(logger *logrus.Logger) *Converter {
 		logger:              logger,
 		refPrefix:           defaultRefPrefix,
 		schemaFileExtension: defaultFileExtension,
-		schemaVersion:       versionDraft04,
+		schemaVersion:       versionDraft07,
 	}
 }
 
@@ -132,7 +133,7 @@ func (c *Converter) parseGeneratorParameters(parameters string) {
 }
 
 // Converts a proto "ENUM" into a JSON-Schema:
-func (c *Converter) convertEnumType(enum *descriptor.EnumDescriptorProto, converterFlags ConverterFlags) (jsonschema.Type, error) {
+func (c *Converter) convertEnumType(enum *descriptor.EnumDescriptorProto, converterFlags ConverterFlags) (jsonschema.Schema, error) {
 
 	// Inherit the CLI converterFlags:
 	converterFlags.EnumsAsStringsOnly = c.Flags.EnumsAsStringsOnly
@@ -155,8 +156,8 @@ func (c *Converter) convertEnumType(enum *descriptor.EnumDescriptorProto, conver
 		}
 	}
 
-	// Prepare a new jsonschema.Type for our eventual return value:
-	jsonSchemaType := jsonschema.Type{}
+	// Prepare a new jsonschema.Schema for our eventual return value:
+	jsonSchemaType := jsonschema.Schema{}
 
 	// Generate a description from src comments (if available):
 	if src := c.sourceInfo.GetEnum(enum); src != nil {
@@ -165,15 +166,15 @@ func (c *Converter) convertEnumType(enum *descriptor.EnumDescriptorProto, conver
 
 	// Use basic types if we're not opting to use constants for ENUMs:
 	if !converterFlags.EnumsAsConstants {
-		jsonSchemaType.OneOf = append(jsonSchemaType.OneOf, &jsonschema.Type{Type: gojsonschema.TYPE_STRING})
+		jsonSchemaType.OneOf = append(jsonSchemaType.OneOf, &jsonschema.Schema{Type: gojsonschema.TYPE_STRING})
 		if !converterFlags.EnumsAsStringsOnly {
-			jsonSchemaType.OneOf = append(jsonSchemaType.OneOf, &jsonschema.Type{Type: gojsonschema.TYPE_INTEGER})
+			jsonSchemaType.OneOf = append(jsonSchemaType.OneOf, &jsonschema.Schema{Type: gojsonschema.TYPE_INTEGER})
 		}
 	}
 
 	// Optionally allow NULL values:
 	if converterFlags.AllowNullValues {
-		jsonSchemaType.OneOf = append(jsonSchemaType.OneOf, &jsonschema.Type{Type: gojsonschema.TYPE_NULL})
+		jsonSchemaType.OneOf = append(jsonSchemaType.OneOf, &jsonschema.Schema{Type: gojsonschema.TYPE_NULL})
 	}
 
 	// If we end up with just one option in OneOf, unwrap it
@@ -194,9 +195,9 @@ func (c *Converter) convertEnumType(enum *descriptor.EnumDescriptorProto, conver
 		// If we're using constants for ENUMs then add these here, along with their title:
 		if converterFlags.EnumsAsConstants {
 			c.schemaVersion = versionDraft06 // Const requires draft-06
-			jsonSchemaType.OneOf = append(jsonSchemaType.OneOf, &jsonschema.Type{Extras: map[string]interface{}{"const": value.GetName()}, Description: valueDescription})
+			jsonSchemaType.OneOf = append(jsonSchemaType.OneOf, &jsonschema.Schema{Extras: map[string]interface{}{"const": value.GetName()}, Description: valueDescription})
 			if !converterFlags.EnumsAsStringsOnly {
-				jsonSchemaType.OneOf = append(jsonSchemaType.OneOf, &jsonschema.Type{Extras: map[string]interface{}{"const": value.GetNumber()}, Description: valueDescription})
+				jsonSchemaType.OneOf = append(jsonSchemaType.OneOf, &jsonschema.Schema{Extras: map[string]interface{}{"const": value.GetNumber()}, Description: valueDescription})
 			}
 		}
 
